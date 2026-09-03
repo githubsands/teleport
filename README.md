@@ -64,15 +64,23 @@ grpc.
 
 This authorization is done by an interactive protocol between our agents (`job_submitter`, `server`, and `watcher`) within the enrollment api
 
-### `enrollment` api and `watcher` protocol:
+### `enrollment` api and its use in role based authentication protocol 
 
-1. potential `watcher` sends a CSR request to our `enrollment` endpoint for a specified job_submitter account 
-(todo: in the future we can query different accounts that exist)
-2. already authenticated `job_submitter` GETs (or polls) our server for `watcher` CSRs
-3. `job_submitter` approves CSRs (TODO: in the future we can deny CSRs)
-4. `watcher` GETs (or polls) the `enrollment` endpoint for its approved cert
-5. `watcher` now has a cert with `job_submitter` in the CA chain and can now stream job logs through grpc 
-   for this specific `job_watcher` account
+within the server we have a enrollment api that authorizes clients to subscribe to job_submitter accounts. after authorization
+the clients become `watchers`
+
+the protocol steps are the following:
+
+```
+1. `job_submitter` authenticates with the server through the `accounts` api
+2. potential `watcher` sends a CSR request to our `enrollment` endpoint for a specified `job_submitter` account 
+3. server authenticates the `watcher` cert and stores it with its CSR
+(todo: in the future we can query different accounts that exist) after already been authenticated by the server
+4. server authenticated `job_submitter` GETs (or polls) our server for `watcher` CSRs and their already existing server authenticated cert
+5. `job_submitter` approves the `watcher` CSRs, signs already existing server authorized cert (TODO: in the future we can deny CSRs), and then submits the cert to the server
+6. `watcher` GETs (or polls) the `enrollment` endpoint for its approved cert that now has two authorizations from both the server and `job_submitter`
+7. `watcher` now has a cert with `job_submitter` in the CA chain and can now stream job logs and job statues through grpc for the `job_watcher` account that was authenticated
+```
 
 beginning open api swagger specs for these http servers can be seen in:
 
@@ -161,8 +169,7 @@ when a `job_submitter` submits a job SDK will generate a idempotent key for this
 
 TODO: implement idempotent key deduplication internally in the server
 
-TODO: implement exponential backoffs in the case the client implementing the SDK cannot
-      reach the server
+TODO: implement exponential backoffs in the client in the case the server is overloaded
 
 in the case that a client leverages this SDK falls over in the time window between using a streamed event in a sink (or other use case) and ACKing 
 the event client side deduplication is implemented using a hash set with the event's sequence being the key.
