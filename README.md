@@ -22,9 +22,9 @@ There are currently 9 different api calls across different internal services (3)
 
 (1) `AccountManager`: account manager is for authenticating and authorizing `job_submitters` through `http`
 
-(2) `Enrollment`: exists for `job_submitter` authorize `watchers` through a interactive mTLS protocol that includes the `watcher`, `job_submitter`, and `server` through `http`
+(2) `Enrollment`: exists for `job_submitter` to authorize `watchers` through a interactive mTLS protocol that includes the `watcher`, `job_submitter`, and `server` through `http`
 
-(3) `Job`: exists to submit new jobs or cancel existing jobs from a `job_submitter`, and get job statuses from a `job_submitter` or `watcher`
+(3) `Job`: exists to submit new jobs or cancel existing jobs from a `job_submitter`, and get job statuses - can be used by both `watcher` and `job_submitter`
 
 (4) `Subscriptions`: exists to receive events more specifically job log events from the server. events can be acknowledged for at least once delivery guarantees
 
@@ -33,11 +33,13 @@ There are currently 9 different api calls across different internal services (3)
 (1) `JobManager`: Registers new jobs and keeps track of job states for later status querying. Upon a new job request from grpc api, jobs are written to disk in the case the server 
 falls down for durability guarantees
 
-(2) `SubscriptionManager & EventStore`: Keeps track of all events, event redelivery, acknowledgements, and cleanup for all watchers and job_submitters
+(2) `SubscriptionManager & EventStore`: Keeps track of all events, event redelivery, acknowledgements, and cleanup for all `watchers` and `job_submitters`
 
-(3) `Executor`: Keeps a queue of all jobs that are not running in buckets based of job execution time - jobs are pruned from the queue off a simple SJF (shortest job first) algorithm.
+(3) `Executor`: Keeps a queue of all jobs that are not running in buckets based of job execution time - jobs are pruned from the queue by a simple SJF (shortest job first) algorithm
 
-If a jobs execution time is not given it will be placed in the longest bucket. If a jobs execution time does not match its actual execution time nothing happens for now but a logged warning
+If a jobs execution time is not given it will be placed in the longest bucket. 
+
+If a jobs execution time does not match its actual execution time nothing happens for now but a logged warning. 
 
 (4) `Enrollment`: Performs the role based authentication for watchers
 
@@ -47,7 +49,7 @@ If a jobs execution time is not given it will be placed in the longest bucket. I
 
 ## II. authorization, authentication, and resource based access control
 
-Job submitters and watchers have role based authorization. 
+The system has two different roles: `job_submitters` and `watchers`.
 
 ### Roles:
 
@@ -57,17 +59,20 @@ anyone (for now) can be authorized to become a `job_submitter` - when our server
 
 (2) `watcher`:
 
-only those who have `job_submitters` in their CA (certificate authority) chain are authorized to subscribe to different `watcher` accounts through 
-grpc.  This authorization is done by an interactive protocol between our agents (`job_submitter`, `server`, and `watcher`) within the enrollment api
+only those who have `job_submitters` in their CA (certificate authority) chain are authorized to subscribe to different `job_submitters` accounts through 
+grpc.  
+
+This authorization is done by an interactive protocol between our agents (`job_submitter`, `server`, and `watcher`) within the enrollment api
 
 ### `enrollment` api and `watcher` protocol:
 
 1. potential `watcher` sends a CSR request to our `enrollment` endpoint for a specified job_submitter account 
 (todo: in the future we can query different accounts that exist)
 2. already authenticated `job_submitter` GETs (or polls) our server for `watcher` CSRs
-3. `job_submitter` approves CSRs (todo: in the future we can deny CSRs)
-4. `job_submitter` approved `watcher` GETs (or polls) the `enrollment` endpoint for its cert
-5. `watcher` now has cert with CA (certificate authority) and can now watch jobs for this specific account
+3. `job_submitter` approves CSRs (TODO: in the future we can deny CSRs)
+4. `watcher` GETs (or polls) the `enrollment` endpoint for its approved cert
+5. `watcher` now has a cert with `job_submitter` in the CA chain and can now stream job logs through grpc 
+   for this specific `job_watcher` account
 
 beginning open api swagger specs for these http servers can be seen in:
 
@@ -105,7 +110,7 @@ an event is emitted in the event store to be streamed along side logs.
 
 only the `job_submitter` is authorized to stop jobs.
 
-status requests system for the current state of the job - both a `watcher` (if authorized) and `job_submitter`
+status requests are also allowed - both a `watcher` (if authorized) and `job_submitter` can receive job statuses
 
 ## V. job states & lifecycle and their relation to server system internals
 
@@ -138,6 +143,7 @@ enum JobState {
            sent to who ever made the stop_job grpc request - job status is then updated in job manager
 
 `completed`: job has succesfully completed on the server
+
 `failed`: job has failed on the server
 
 upon server fall over all `committed`, `pending`, or `running` workloads are replayed into the servers queue.
@@ -167,5 +173,5 @@ configurable size it is split into chunks on the server side.
 the sdk is responsible for joining different fragments that belong to the same chunk to keep log messages meaningful.
 
 `job_watcher` can use the above mentioned `account`, `enrollment`, `job`, and `subscription` apis while the
-`watcher` can use the `enrollment`, `job` (with limited authorization), and `subscription` apis.
+`watcher` can use the `enrollment`, `job` & `subscription` apir (with limited authorization)
 
