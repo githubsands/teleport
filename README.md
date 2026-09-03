@@ -66,20 +66,20 @@ This authorization is done by an interactive protocol between our agents (`job_s
 
 ### `enrollment` api and its use in role based authentication protocol 
 
-within the server we have a enrollment api that authorizes clients to subscribe to job_submitter accounts. after authorization
-the clients become `watchers`
+within the server we have a enrollment api that authorizes clients to subscribe to job_submitter accounts. 
+
+after both server and job_submitter authorization the clients can become `watchers`
 
 the protocol steps are the following:
 
 ```
 1. `job_submitter` authenticates with the server through the `accounts` api
-2. potential `watcher` sends a CSR request to our `enrollment` endpoint for a specified `job_submitter` account 
-3. server authenticates the `watcher` cert and stores it with its CSR
-(todo: in the future we can query different accounts that exist) after already been authenticated by the server
-4. server authenticated `job_submitter` GETs (or polls) our server for `watcher` CSRs and their already existing server authenticated cert
+2. potential `watcher` sends a CSR request for a specific `job_submitter` to our `enrollment` endpoint for a specified `job_submitter` account 
+3. server authorizes the `watcher` cert and stores it with its CSR
+4. server authorized `job_submitter` GETs (or polls) our server for potential `watcher` CSRs and their already existing server authorized cert
 5. `job_submitter` approves the `watcher` CSRs, signs already existing server authorized cert (TODO: in the future we can deny CSRs), and then submits the cert to the server
-6. `watcher` GETs (or polls) the `enrollment` endpoint for its approved cert that now has two authorizations from both the server and `job_submitter`
-7. `watcher` now has a cert with `job_submitter` in the CA chain and can now stream job logs and job statues through grpc for the `job_watcher` account that was authenticated
+6. `watcher` GETs (or polls) the `enrollment` endpoint for its authorized cert that now has two authorizations from both the server and `job_submitter`
+7. `watcher` now has a cert with both `server` & `job_submitter` in its CA chain and can now stream job logs and job statues through grpc for the `job_watcher` account that was authenticated
 ```
 
 beginning open api swagger specs for these http servers can be seen in:
