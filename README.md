@@ -39,7 +39,7 @@ If a jobs execution time is not given it will be placed in the longest bucket.
 
 If a jobs execution time does not match its actual execution time nothing happens for now but a logged warning. 
 
-![Teleport architecture diagram](./architecture.png) // NOTE: this has not been updated and is a larger scoped project
+![Teleport architecture diagram](./architecture.png) // DEPRECATED: this has not been updated and is a larger scoped project
 
 ## II. authorization, authentication, and resource based access control
 
@@ -54,9 +54,9 @@ The system has two different roles: `job_submitters` and `watchers`.
 
 ## III. on client subscriptions for logs and other events
 
-both `job_submitter` and `watcher` can subscribe to logs.
+both `job_submitter` and `watcher` can subscribe to job output or logs.
 
-logs events are delivered at an `at most once basis delivery guarantees` - no acknowldgement is required
+logs events are delivered at an `at most once delivery guarantees` - no acknowldgement is required
 
 once subscribed the server will push log based events to the clients.
 
@@ -67,8 +67,7 @@ started jobs are submitted to the server and then committed for durability if a 
 this does not necessarily mean it has been initiated as it could sit in the server's queue until
 resources are avaliable
 
-jobs can only be created if the user has authenticated with the server
-already and created an account through the `account api`
+jobs can only be created if the user has authenticated with the server as a `job_submitter`
 
 stopped jobs are removed from the program - they cannot be restarted.  if a job is stopped 
 an event is emitted in the event store to be streamed along side logs.
@@ -111,16 +110,15 @@ enum JobState {
 `uncommitted`: job has yet to be sent from the client or flushed to the servers disk through a WAL
 
 `committed`: job has succesfully been flushed to the servers disk and is durable - if the server
-            falls over prejob completion, stop, or failure it can be succesfully replayed upon server
+            falls over prejob completion, stop, or failed it can be succesfully replayed upon server
             restart
 
 `pending`: job is currently within its queue in its time designated bucket
 
-`running`: job is running and subscribers can receive soft real time events if currently subscribed
-         to the account that this job is owned to
+`running`: job is running and subscribers can receive soft real time events if currently subscribed to that job id
 
 `stopped`: job is stopped from running if job was in any state besides RUNNING an invalid request is 
-           sent to who ever made the stop_job grpc request - job status is then updated in job manager
+           sent to who ever made the stop_job grpc request
 
 `completed`: job has succesfully completed on the server
 
@@ -136,7 +134,7 @@ client library provides two different sdks for `watcher` and `job_submitter`.
 
 both `watcher` and `job_submitter` can stream job output (or logs)
 
-when a `job_submitter` submits a job SDK will generate a idempotent key for this workload 
+when a `job_submitter` submits a job, SDK will generate a idempotent key for this workload 
 
 TODO: implement idempotent key deduplication internally in the server
 
