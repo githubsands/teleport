@@ -1,0 +1,138 @@
+syntax = "proto3";
+
+package api.v0;
+
+option go_package = "main/api";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+service SubscriptionManagerEventStore {
+  rpc Replay(ReplayRequest) returns (stream ReplayResponse);
+  rpc SubscribeJobLogsByJobUUID(SubscribeByJobRequest) returns (stream LogEvent);
+}
+
+service JobManager {
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Stop(StopRequest) returns (StopResponse);
+  rpc Status(StatusRequest) returns (StatusResponse);
+}
+
+message LogEvent {
+  string uuid = 1;
+  int32 seq = 2;
+  string type = 3;
+  string account = 4;
+  google.protobuf.Timestamp created_at = 5;
+
+  Job job = 6;
+}
+
+message Job {
+  int64 uuid = 1;
+  string process = 2;
+  string extra = 3; // the flags of the process i.e "--color=when"
+  JobOutput output = 4;
+}
+
+message JobOutput {
+  int64 seq = 1;
+
+  google.protobuf.Struct payload = 2;
+
+  // Present only if this event is one frame of a payload too big to fit in
+  // a single LogEvent — see ChunkMetaData. Absent for ordinary, self
+  // contained events.
+  optional ChunkMetaData chunk_metadata = 3;
+}
+
+
+// A single logical payload (e.g. a large log write) can be too big for one
+// LogEvent, so it's split into a chunk delivered as several frames. These
+// fields let a consumer reassemble a chunk from its frames and know when
+// it's complete.
+message ChunkMetaData {
+  enum FramePosition {
+    FRAME_POSITION_UNSPECIFIED = 0;
+    FRAME_POSITION_START = 1;
+    FRAME_POSITION_MIDDLE = 2;
+    FRAME_POSITION_END = 3;
+  }
+
+  string chunk_id = 1;      // groups every frame belonging to the same chunk
+  int32 frame_offset = 2;   // this frame's position within the chunk
+  FramePosition position = 3;
+}
+
+enum JobState {
+  JOB_STATE_UNSPECIFIED = 0;
+  JOB_STATE_UNCOMMITTED = 1;
+  JOB_STATE_COMMITTED = 2;
+  JOB_STATE_PENDING = 3;
+  JOB_STATE_RUNNING = 4;
+  JOB_STATE_STOPPED = 5;
+  JOB_STATE_COMPLETED = 6;
+  JOB_STATE_FAILED = 7;
+}
+
+message ReplayRequest {
+  int64 job_uuid = 1;
+
+  int32 limit = 2; // number of events to replay
+  int32 seq_start = 3;
+}
+
+message SubscribeByJobRequest {
+  string job_uuid = 1;
+}
+
+message ReplayResponse {
+  repeated LogEvent events = 1;
+  int32 events_received = 2;
+  int64 seq_start = 3;
+  int64 seq_end = 4;
+
+  int32 status_code = 5;
+  google.protobuf.Timestamp received = 6;
+}
+
+message StartRequest {
+  int64 idempotency_key = 1;
+  optional int64 duration_milliseconds = 2; // time it takes for a job to run - can be optional
+
+  string process = 3; // the process to be exected i.e "ls"
+  repeated string extra = 4; // the flags of the process i.e "--color=when"
+}
+
+message StartResponse {
+  string job_uuid = 1;
+
+  int32 status_code = 2;
+  google.protobuf.Timestamp received = 3;
+}
+
+message StopRequest {
+  string job = 1;
+  string account = 2;
+}
+
+message StopResponse {
+  string job = 1;
+  JobState state = 2;
+
+  int32 status_code = 3;
+  google.protobuf.Timestamp received = 4;
+}
+
+message StatusRequest {
+  string job = 1;
+  string account = 2;
+}
+
+message StatusResponse {
+  string job = 1;
+  int32 status_code = 2;
+
+  JobState status = 3;
+  google.protobuf.Timestamp received = 4;
+}
