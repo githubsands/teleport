@@ -77,18 +77,19 @@ only the `job_submitter` is authorized to stop or receive job status.
 
 ## V. Job execution and output streaming
 
+job execution streaming has 3 temporal primitives (`job execution`, `job output`, & job output `chunk` or `frame`) that are delivered through a `LogEvent`
+
 one job execution may contain many continual job outputs
 
-a job's execution is streamed through LogEvents which is granularly broken down into `JobOutput` 
-where each `JobOutput` can have an optional `ChunkMetaData`.
+a job's execution is streamed through LogEvents which is granularly broken down into `JobOutput`  where each `JobOutput` can have an optional `ChunkMetaData`.
 
 if a job output within a jobs execution window exceeds `MAX_BYTES_PER_LOG_EVENT` it is broken down into many frames across a incremented `frame_offset` range where the entire output is identified by a unique `chunk_id` within `ChunkMetaData`
 
 one job output can be composed of many sequential chunks spanned among many `EventLogs`
 
-the ordering of a job execution individual job outputs is determined by incrementally ordered `seq` within the `JobOutput`
+the ordering of a job execution individual job outputs is determined by an incrementally ordered `seq` within the `JobOutput`
 
-logs events can be replayed based off a clients last seen LogEvent `seq` id
+logs events can be replayed based off a clients last seen `LogEvent` `seq` id
 
 
 ## VI. job states & lifecycle and their relation to server system internals
