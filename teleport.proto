@@ -9,9 +9,7 @@ import "google/protobuf/struct.proto";
 
 service SubscriptionManagerEventStore {
   rpc Replay(ReplayRequest) returns (stream ReplayResponse);
-  rpc Ack(AckRequest) returns (AckResponse);
-  rpc AckBatch(AckBatchRequest) returns (AckBatchResponse);
-  rpc SubscribeJobLogsByJobSubmitterAccount(SubscribeByJobRequest) returns (stream LogEvent);
+  rpc SubscribeJobLogsByJobUUID(SubscribeByJobRequest) returns (stream LogEvent);
 }
 
 service JobManager {
@@ -24,16 +22,30 @@ message LogEvent {
   string uuid = 1;
   int32 seq = 2;
   string type = 3;
-  string job_uuid = 4;
-  string account = 5;
-  google.protobuf.Struct payload = 6;
-  google.protobuf.Timestamp created_at = 7;
+  string account = 4;
+  google.protobuf.Timestamp created_at = 5;
+
+  Job job = 6;
+}
+
+message Job {
+  int64 uuid = 1;
+  string process = 2;
+  string extra = 3; // the flags of the process i.e "--color=when"
+  JobOutput output = 4;
+}
+
+message JobOutput {
+  int64 seq = 1;
+
+  google.protobuf.Struct payload = 2;
 
   // Present only if this event is one frame of a payload too big to fit in
   // a single LogEvent — see ChunkMetaData. Absent for ordinary, self
   // contained events.
-  optional ChunkMetaData chunk_metadata = 9;
+  optional ChunkMetaData chunk_metadata = 3;
 }
+
 
 // A single logical payload (e.g. a large log write) can be too big for one
 // LogEvent, so it's split into a chunk delivered as several frames. These
@@ -64,54 +76,36 @@ enum JobState {
 }
 
 message ReplayRequest {
-  int32 limit = 1;
-  string account = 2;
+  int64 job_uuid = 1;
+
+  int32 limit = 2; // number of events to replay
+  int32 seq_start = 3;
 }
 
 message SubscribeByJobRequest {
-  string job = 1;
-  int64 from_sequence = 2;
+  string job_uuid = 1;
 }
 
 message ReplayResponse {
   repeated LogEvent events = 1;
   int32 events_received = 2;
-  int64 last_seq_acked = 3;
+  int64 seq_start = 3;
+  int64 seq_end = 4;
 
-  int32 status_code = 4;
-  google.protobuf.Timestamp received = 5;
-}
-
-message AckRequest {
-  int32 seq = 1;
-}
-
-message AckResponse {
-  int32 status_code = 1;
-  google.protobuf.Timestamp received = 2;
-}
-
-message AckBatchRequest {
-  int32 seq_start = 1;
-  int32 seq_end = 2;
-}
-
-message AckBatchResponse {
-  int32 status_code = 1;
-  google.protobuf.Timestamp received = 3;
+  int32 status_code = 5;
+  google.protobuf.Timestamp received = 6;
 }
 
 message StartRequest {
   int64 idempotency_key = 1;
-  string account = 3;
-  optional int64 duration_milliseconds = 4; // time it takes for a job to run - can be optional
+  optional int64 duration_milliseconds = 2; // time it takes for a job to run - can be optional
 
-  string process = 5; // the process to be exected i.e "ls"
-  repeated string extra = 6; // the flags of the process i.e "--color=when"
+  string process = 3; // the process to be exected i.e "ls"
+  repeated string extra = 4; // the flags of the process i.e "--color=when"
 }
 
 message StartResponse {
-  string job = 1;
+  string job_uuid = 1;
 
   int32 status_code = 2;
   google.protobuf.Timestamp received = 3;
